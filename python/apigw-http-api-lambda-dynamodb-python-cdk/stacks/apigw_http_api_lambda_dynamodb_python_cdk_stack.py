@@ -87,9 +87,19 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
         demo_table.grant_write_data(api_hanlder)
         api_hanlder.add_environment("TABLE_NAME", demo_table.table_name)
 
-        # Create API Gateway
+        # Create API Gateway with throttling configuration
         apigw_.LambdaRestApi(
             self,
             "Endpoint",
             handler=api_hanlder,
+            deploy_options=apigw_.StageOptions(
+                throttling_rate_limit=100,
+                throttling_burst_limit=200,
+                method_options={
+                    "/*/*": apigw_.MethodDeploymentOptions(
+                        throttling_rate_limit=100,
+                        throttling_burst_limit=200
+                    )
+                }
+            )
         )
