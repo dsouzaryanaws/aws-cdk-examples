@@ -84,6 +84,9 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
         )
 
         # Create the Lambda function to receive the request
+        # Reserved concurrency calculation:
+        # Assuming API Gateway throttle limit of 1000 req/s and avg Lambda duration of 100ms:
+        # reserved_concurrency >= 1000 req/s × 0.1s = 100
         api_hanlder = lambda_.Function(
             self,
             "ApiHandler",
@@ -97,6 +100,7 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
             ),
             memory_size=1024,
             timeout=Duration.minutes(5),
+            reserved_concurrent_executions=100,
             log_retention=logs.RetentionDays.ONE_YEAR,
             tracing=lambda_.Tracing.ACTIVE,
         )
