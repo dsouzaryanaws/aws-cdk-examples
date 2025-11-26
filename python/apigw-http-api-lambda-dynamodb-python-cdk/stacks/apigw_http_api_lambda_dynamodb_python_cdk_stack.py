@@ -112,12 +112,15 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
             retention=logs.RetentionDays.ONE_YEAR,
         )
 
-        # Create API Gateway
-        apigw_.LambdaRestApi(
+        # Create API Gateway with API key requirement
+        api = apigw_.LambdaRestApi(
             self,
             "Endpoint",
             handler=api_hanlder,
             cloud_watch_role=True,
+            default_method_options=apigw_.MethodOptions(
+                api_key_required=True,
+            ),
             deploy_options=apigw_.StageOptions(
                 access_log_destination=apigw_.LogGroupLogDestination(api_log_group),
                 access_log_format=apigw_.AccessLogFormat.json_with_standard_fields(
@@ -134,3 +137,29 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
                 tracing_enabled=True,
             ),
         )
+
+        # Create usage plan with per-client throttling
+        usage_plan = api.add_usage_plan(
+            "UsagePlan",
+            name="StandardUsagePlan",
+            throttle=apigw_.ThrottleSettings(
+                rate_limit=100,
+                burst_limit=200,
+            ),
+            quota=apigw_.QuotaSettings(
+                limit=10000,
+                period=apigw_.Period.DAY,
+            ),
+        )
+
+        usage_plan.add_api_stage(
+            stage=api.deployment_stage,
+        )
+
+        # Create API key
+        api_key = api.add_api_key(
+            "ApiKey",
+            api_key_name="DefaultApiKey",
+        )
+
+        usage_plan.add_api_key(api_key)
