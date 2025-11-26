@@ -10,6 +10,7 @@ from aws_cdk import (
     aws_ec2 as ec2,
     aws_iam as iam,
     aws_logs as logs,
+    aws_wafv2 as wafv2,
     Duration,
 )
 from constructs import Construct
@@ -112,13 +113,16 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
             retention=logs.RetentionDays.ONE_YEAR,
         )
 
-        # Create API Gateway
-        apigw_.LambdaRestApi(
+        # Create API Gateway with throttling limits
+        # Throttle limits should be adjusted based on load testing results
+        api = apigw_.LambdaRestApi(
             self,
             "Endpoint",
             handler=api_hanlder,
             cloud_watch_role=True,
             deploy_options=apigw_.StageOptions(
+                throttling_rate_limit=1000,  # requests per second
+                throttling_burst_limit=2000,  # burst capacity
                 access_log_destination=apigw_.LogGroupLogDestination(api_log_group),
                 access_log_format=apigw_.AccessLogFormat.json_with_standard_fields(
                     caller=True,
@@ -133,4 +137,43 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
                 ),
                 tracing_enabled=True,
             ),
+        )
+
+        # Create WAF Web ACL with rate limiting
+        web_acl = wafv2.CfnWebACL(
+            self,
+            "ApiWafAcl",
+            default_action=wafv2.CfnWebACL.DefaultActionProperty(allow={}),
+            scope="REGIONAL",
+            visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                cloud_watch_metrics_enabled=True,
+                metric_name="ApiWafAcl",
+                sampled_requests_enabled=True,
+            ),
+            rules=[
+                wafv2.CfnWebACL.RuleProperty(
+                    name="RateLimitRule",
+                    priority=1,
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        rate_based_statement=wafv2.CfnWebACL.RateBasedStatementProperty(
+                            limit=2000,
+                            aggregate_key_type="IP",
+                        )
+                    ),
+                    action=wafv2.CfnWebACL.RuleActionProperty(block={}),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        cloud_watch_metrics_enabled=True,
+                        metric_name="RateLimitRule",
+                        sampled_requests_enabled=True,
+                    ),
+                )
+            ],
+        )
+
+        # Associate WAF with API Gateway
+        wafv2.CfnWebACLAssociation(
+            self,
+            "ApiWafAssociation",
+            resource_arn=f"arn:aws:apigateway:{self.region}::/restapis/{api.rest_api_id}/stages/{api.deployment_stage.stage_name}",
+            web_acl_arn=web_acl.attr_arn,
         )
