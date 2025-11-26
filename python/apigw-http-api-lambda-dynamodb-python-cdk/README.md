@@ -85,6 +85,76 @@ You should get below response
 {"message": "Successfully inserted data!"}
 ```
 
+## Performance and Throttling Configuration
+
+### Load Testing Guidance
+
+Before configuring throttle limits in production, perform load testing to establish appropriate capacity:
+
+**Recommended Testing Approach:**
+1. Use tools like Apache JMeter, Artillery, or AWS Distributed Load Testing
+2. Test scenarios:
+   - Normal sustained load
+   - Peak traffic patterns
+   - Burst traffic spikes
+   - Large payload requests (test both rate and request size)
+3. Monitor metrics:
+   - API Gateway latency and error rates
+   - Lambda duration, concurrency, and throttles
+   - DynamoDB consumed capacity
+   - VPC endpoint throughput
+
+**Example Load Test with Artillery:**
+```bash
+# Install Artillery
+npm install -g artillery
+
+# Create test-config.yml
+cat > test-config.yml << EOF
+config:
+  target: "https://YOUR_API_ENDPOINT"
+  phases:
+    - duration: 60
+      arrivalRate: 100
+      name: "Sustained load"
+    - duration: 30
+      arrivalRate: 500
+      name: "Peak load"
+scenarios:
+  - flow:
+      - post:
+          url: "/prod"
+          json:
+            year: "2023"
+            title: "test"
+            id: "{{ \$randomString() }}"
+EOF
+
+# Run test
+artillery run test-config.yml
+```
+
+### Current Configuration (Placeholder Values)
+
+**Note:** The values below are placeholders and should be updated based on your load testing results.
+
+**API Gateway Throttling:**
+- Rate Limit: 1000 requests/second (update after testing)
+- Burst Limit: 2000 requests (update after testing)
+
+**Lambda Configuration:**
+- Reserved Concurrency: 100 executions (update after testing)
+- Memory: 1024 MB
+- Timeout: 5 minutes
+
+**Testing Checklist:**
+- [ ] Conduct load testing with expected traffic patterns
+- [ ] Document maximum sustained request rate
+- [ ] Document burst capacity
+- [ ] Measure average and P99 Lambda execution duration
+- [ ] Update throttle limits based on test results
+- [ ] Re-test after any infrastructure changes
+
 ## Cleanup 
 Run below script to delete AWS resources created by this sample stack.
 ```
