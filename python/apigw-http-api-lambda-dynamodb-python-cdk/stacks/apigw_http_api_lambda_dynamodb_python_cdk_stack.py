@@ -117,13 +117,16 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
             retention=logs.RetentionDays.ONE_YEAR,
         )
 
-        # Create API Gateway with throttling limits
+        # Create API Gateway with throttling limits and API key requirement
         # Throttle limits should be adjusted based on load testing results
         api = apigw_.LambdaRestApi(
             self,
             "Endpoint",
             handler=api_hanlder,
             cloud_watch_role=True,
+            default_method_options=apigw_.MethodOptions(
+                api_key_required=True,
+            ),
             deploy_options=apigw_.StageOptions(
                 throttling_rate_limit=1000,  # requests per second
                 throttling_burst_limit=2000,  # burst capacity
@@ -142,6 +145,32 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
                 tracing_enabled=True,
             ),
         )
+
+        # Create usage plan with per-client throttling
+        usage_plan = api.add_usage_plan(
+            "UsagePlan",
+            name="StandardUsagePlan",
+            throttle=apigw_.ThrottleSettings(
+                rate_limit=100,
+                burst_limit=200,
+            ),
+            quota=apigw_.QuotaSettings(
+                limit=10000,
+                period=apigw_.Period.DAY,
+            ),
+        )
+
+        usage_plan.add_api_stage(
+            stage=api.deployment_stage,
+        )
+
+        # Create API key
+        api_key = api.add_api_key(
+            "ApiKey",
+            api_key_name="DefaultApiKey",
+        )
+
+        usage_plan.add_api_key(api_key)
 
         # Create WAF Web ACL with rate limiting
         web_acl = wafv2.CfnWebACL(
