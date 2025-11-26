@@ -112,13 +112,16 @@ class ApigwHttpApiLambdaDynamodbPythonCdkStack(Stack):
             retention=logs.RetentionDays.ONE_YEAR,
         )
 
-        # Create API Gateway
+        # Create API Gateway with throttling limits
+        # Throttle limits should be adjusted based on load testing results
         apigw_.LambdaRestApi(
             self,
             "Endpoint",
             handler=api_hanlder,
             cloud_watch_role=True,
             deploy_options=apigw_.StageOptions(
+                throttling_rate_limit=1000,  # requests per second
+                throttling_burst_limit=2000,  # burst capacity
                 access_log_destination=apigw_.LogGroupLogDestination(api_log_group),
                 access_log_format=apigw_.AccessLogFormat.json_with_standard_fields(
                     caller=True,
